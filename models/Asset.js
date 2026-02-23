@@ -1,0 +1,38 @@
+const mongoose = require('mongoose');
+
+const assetSchema = new mongoose.Schema({
+    title: {
+        type: String,
+        required: [true, 'Please add a title'],
+        trim: true
+    },
+    description: {
+        type: String,
+        required: [true, 'Please add a description']
+    },
+    location: {
+        type: String,
+        required: [true, 'Please add a location']
+    },
+    price: {
+        type: Number,
+        required: [true, 'Please add a price']
+    },
+    images: {
+        type: [String], // Array of local file paths
+        default: []
+    },
+    status: {
+        type: String,
+        enum: ['available', 'sold'],
+        default: 'available'
+    },
+    owner: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    }
+}, {
+    timestamps: true
+});
+
+module.exports = mongoose.model('Asset', assetSchema);
