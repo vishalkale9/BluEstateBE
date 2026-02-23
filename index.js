@@ -14,6 +14,10 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Serve Static Uploads Folder
+const path = require('path');
+app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
+
 // Test Route
 app.get("/", (req, res) => {
     res.json({ message: "BluEstate Backend API is running..." });
@@ -21,6 +25,7 @@ app.get("/", (req, res) => {
 
 // Mount Routes
 app.use("/api/auth", require("./routes/authRoutes"));
+app.use("/api/assets", require("./routes/assetRoutes"));
 
 // Global Error Handler
 app.use((err, req, res, next) => {
