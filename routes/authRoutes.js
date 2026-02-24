@@ -3,33 +3,22 @@ const {
     register,
     login,
     getNonce,
-    verifySignature
+    linkWallet,
+    unlinkWallet,
+    getMe
 } = require("../controllers/authController");
+const { protect } = require("../middlewares/authMiddleware");
 
 const router = express.Router();
 
-/**
- * @route   POST /api/auth/register
- * @desc    Traditional Signup (Email/Password)
- */
+// Public Routes
 router.post("/register", register);
-
-/**
- * @route   POST /api/auth/login
- * @desc    Traditional Login (Email/Password)
- */
 router.post("/login", login);
 
-/**
- * @route   GET /api/auth/nonce/:walletAddress
- * @desc    Web3 Step 1: Get challenge nonce for MetaMask
- */
-router.get("/nonce/:walletAddress", getNonce);
-
-/**
- * @route   POST /api/auth/verify
- * @desc    Web3 Step 2: Verify signature and issue JWT
- */
-router.post("/verify", verifySignature);
+// Private Routes (Logged-in users only)
+router.get("/me", protect, getMe);
+router.get("/nonce", protect, getNonce); // Get nonce for the logged-in user
+router.post("/link-wallet", protect, linkWallet);
+router.delete("/unlink-wallet", protect, unlinkWallet);
 
 module.exports = router;

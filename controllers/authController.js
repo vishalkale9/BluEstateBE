@@ -10,29 +10,54 @@ const generateToken = (id) => {
     });
 };
 
-// @desc    Register user (Web2)
-// @route   POST /api/auth/register
-exports.register = async (req, res) => {
+/**
+ * @desc    Get current user profile (To check if wallet is linked)
+ * @route   GET /api/auth/me
+ * @access  Private
+ */
+exports.getMe = async (req, res) => {
     try {
-        const { name, email, password, role } = req.body;
-
-        // Use create - it will trigger the password hashing middleware in the model
-        const user = await User.create({ name, email, password, role });
-
-        const token = generateToken(user._id);
-        res.status(201).json({ success: true, token, user: { id: user._id, name: user.name, email: user.email, role: user.role } });
+        const user = await User.findById(req.user.id);
+        res.status(200).json({ success: true, user });
     } catch (err) {
         res.status(400).json({ success: false, message: err.message });
     }
 };
 
-// @desc    Login user (Web2)
-// @route   POST /api/auth/login
+/**
+ * @desc    Traditional Signup (Web2-first)
+ * @route   POST /api/auth/register
+ */
+exports.register = async (req, res) => {
+    try {
+        const { name, email, password } = req.body;
+
+        // Explicitly check for existing user to provide better error message
+        const userExists = await User.findOne({ email });
+        if (userExists) {
+            return res.status(400).json({ success: false, message: "User already exists with this email" });
+        }
+
+        const user = await User.create({ name, email, password });
+        const token = generateToken(user._id);
+
+        res.status(201).json({
+            success: true,
+            token,
+            user: { id: user._id, name: user.name, email: user.email, role: user.role, walletAddress: user.walletAddress }
+        });
+    } catch (err) {
+        res.status(400).json({ success: false, message: err.message });
+    }
+};
+
+/**
+ * @desc    Traditional Login
+ * @route   POST /api/auth/login
+ */
 exports.login = async (req, res) => {
     try {
         const { email, password } = req.body;
-
-        // Find user and include password field
         const user = await User.findOne({ email }).select("+password");
 
         if (!user || !(await bcrypt.compare(password, user.password))) {
@@ -40,28 +65,26 @@ exports.login = async (req, res) => {
         }
 
         const token = generateToken(user._id);
-        res.status(200).json({ success: true, token, user: { id: user._id, name: user.name, email: user.email, role: user.role } });
+        res.status(200).json({
+            success: true,
+            token,
+            user: { id: user._id, name: user.name, email: user.email, role: user.role, walletAddress: user.walletAddress }
+        });
     } catch (err) {
         res.status(400).json({ success: false, message: err.message });
     }
 };
 
-// @desc    Get nonce for Web3 login
-// @route   GET /api/auth/nonce/:walletAddress
+/**
+ * @desc    Step 1: Get Nonce for the current logged-in user
+ * @route   GET /api/auth/nonce
+ * @access  Private (Since it's for linking in the profile dropdown)
+ */
 exports.getNonce = async (req, res) => {
     try {
-        const { walletAddress } = req.params;
-        const address = walletAddress.toLowerCase();
-
-        let user = await User.findOne({ walletAddress: address });
-
-        if (!user) {
-            // Auto-create account for new Web3 users
-            user = await User.create({
-                name: `Web3User-${address.substring(0, 6)}`,
-                walletAddress: address
-            });
-        }
+        // Since user is logged in via Email, we use req.user.id
+        const user = await User.findById(req.user.id);
+        if (!user) return res.status(404).json({ success: false, message: "User not found" });
 
         res.status(200).json({ success: true, nonce: user.nonce });
     } catch (err) {
@@ -69,31 +92,59 @@ exports.getNonce = async (req, res) => {
     }
 };
 
-// @desc    Verify signature and login (Web3)
-// @route   POST /api/auth/verify
-exports.verifySignature = async (req, res) => {
+/**
+ * @desc    Step 2: Verify & Link Wallet to current account
+ * @route   POST /api/auth/link-wallet
+ * @access  Private
+ */
+exports.linkWallet = async (req, res) => {
     try {
         const { walletAddress, signature } = req.body;
         const address = walletAddress.toLowerCase();
 
-        const user = await User.findOne({ walletAddress: address });
-        if (!user) return res.status(404).json({ success: false, message: "User not found" });
+        // 1. Verify that this wallet isn't already used by someone else
+        const walletUsed = await User.findOne({ walletAddress: address });
+        if (walletUsed && walletUsed._id.toString() !== req.user.id) {
+            return res.status(400).json({ success: false, message: "This wallet is already linked to another account" });
+        }
 
+        const user = await User.findById(req.user.id);
         const msg = `Verify your wallet ownership for BluEstate: ${user.nonce}`;
 
-        // Recover the address from the signature
+        // 2. Cryptographic Verification
         const recoveredAddress = ethers.verifyMessage(msg, signature);
 
         if (recoveredAddress.toLowerCase() !== address) {
-            return res.status(401).json({ success: false, message: "Invalid signature" });
+            return res.status(401).json({ success: false, message: "Signature verification failed" });
         }
 
-        // Important: Update nonce after successful verification to prevent replay attacks
-        user.nonce = Math.floor(Math.random() * 1000000).toString();
+        // 3. Update User Record
+        user.walletAddress = address;
+        user.nonce = Math.floor(Math.random() * 1000000).toString(); // Rotate nonce for security
         await user.save();
 
-        const token = generateToken(user._id);
-        res.status(200).json({ success: true, token, user: { id: user._id, name: user.name, walletAddress: user.walletAddress, role: user.role } });
+        res.status(200).json({
+            success: true,
+            message: "Wallet successfully linked",
+            user: { id: user._id, name: user.name, email: user.email, walletAddress: user.walletAddress }
+        });
+    } catch (err) {
+        res.status(400).json({ success: false, message: err.message });
+    }
+};
+
+/**
+ * @desc    Unlink Wallet (Disconnect logic)
+ * @route   DELETE /api/auth/unlink-wallet
+ * @access  Private
+ */
+exports.unlinkWallet = async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id);
+        user.walletAddress = undefined; // Remove the link
+        await user.save();
+
+        res.status(200).json({ success: true, message: "Wallet unlinked successfully" });
     } catch (err) {
         res.status(400).json({ success: false, message: err.message });
     }
