@@ -13,8 +13,7 @@ const investmentSchema = new mongoose.Schema({
     },
     sharesBought: {
         type: Number,
-        required: [true, 'Please specify the number of shares'],
-        min: [1, 'Must buy at least 1 share']
+        required: [true, 'Please specify the number of shares']
     },
     totalAmount: {
         type: Number,

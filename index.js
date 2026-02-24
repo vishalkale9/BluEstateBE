@@ -33,6 +33,7 @@ app.use("/api/assets", require("./routes/assetRoutes"));
 app.use("/api/investments", require("./routes/investmentRoutes"));
 app.use("/api/kyc", require("./routes/kycRoutes"));
 app.use("/api/users", require("./routes/userRoutes"));
+app.use("/api/secondary", require("./routes/secondaryRoutes"));
 
 // Global Error Handler
 app.use((err, req, res, next) => {

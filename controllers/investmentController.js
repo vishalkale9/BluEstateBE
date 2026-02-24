@@ -50,14 +50,24 @@ exports.investInAsset = async (req, res) => {
 
         await asset.save();
 
-        // 5. Create Investment Record
-        const investment = await Investment.create({
-            user: req.user.id,
-            asset: assetId,
-            sharesBought: sharesToBuy,
-            totalAmount: totalCost,
-            status: 'completed'
-        });
+        // 5. Consolidate Investment Record (Expert RWA Strategy)
+        let investment = await Investment.findOne({ user: req.user.id, asset: assetId });
+
+        if (investment) {
+            // Update existing record
+            investment.sharesBought += sharesToBuy;
+            investment.totalAmount += totalCost;
+            await investment.save();
+        } else {
+            // Create new record
+            investment = await Investment.create({
+                user: req.user.id,
+                asset: assetId,
+                sharesBought: sharesToBuy,
+                totalAmount: totalCost,
+                status: 'completed'
+            });
+        }
 
         res.status(201).json({
             success: true,
