@@ -20,7 +20,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // Serve Static Uploads Folder
 const path = require('path');
-app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Test Route
 app.get("/", (req, res) => {
@@ -31,6 +31,7 @@ app.get("/", (req, res) => {
 app.use("/api/auth", require("./routes/authRoutes"));
 app.use("/api/assets", require("./routes/assetRoutes"));
 app.use("/api/investments", require("./routes/investmentRoutes"));
+app.use("/api/kyc", require("./routes/kycRoutes"));
 
 // Global Error Handler
 app.use((err, req, res, next) => {
