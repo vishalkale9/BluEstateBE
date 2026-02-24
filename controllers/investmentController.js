@@ -15,7 +15,15 @@ exports.investInAsset = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Invalid number of shares' });
         }
 
-        // 1. Fetch Asset
+        // 1. Check KYC Status
+        if (req.user.kycStatus !== 'verified') {
+            return res.status(403).json({
+                success: false,
+                message: 'Please complete your KYC verification before investing.'
+            });
+        }
+
+        // 2. Fetch Asset
         const asset = await Asset.findById(assetId);
         if (!asset) {
             return res.status(404).json({ success: false, message: 'Property listing not found' });
@@ -110,7 +118,7 @@ exports.getGlobalSales = async (req, res) => {
     try {
         const investments = await Investment.find()
             .populate('user', 'name email walletAddress')
-            .populate('asset', 'title price')
+            .populate('asset', 'title price images tokenPrice category')
             .sort('-createdAt');
 
         res.status(200).json({
