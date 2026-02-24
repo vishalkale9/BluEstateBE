@@ -6,24 +6,31 @@ const Asset = require('../models/Asset');
 exports.createAsset = async (req, res) => {
     try {
         // req.files is populated by multer
-        const imagePaths = req.files ? req.files.map(file => `/uploads/${file.filename}`) : [];
+        // We store only the filename in the DB to keep it clean. 
+        // The /uploads/ prefix is handled by the static middleware and UI.
+        const images = req.files ? req.files.map(file => file.filename) : [];
+
+        if (images.length === 0) {
+            return res.status(400).json({ success: false, message: 'Please upload at least one image' });
+        }
 
         const assetData = {
             ...req.body,
-            images: imagePaths,
-            owner: req.user.id // Link to the admin who created it
+            images,
+            owner: req.user.id
         };
 
         const asset = await Asset.create(assetData);
 
         res.status(201).json({
             success: true,
+            message: 'Asset created successfully',
             data: asset
         });
     } catch (err) {
         res.status(400).json({
             success: false,
-            message: err.message
+            message: err.message || 'Server Error'
         });
     }
 };
