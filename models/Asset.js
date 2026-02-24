@@ -34,6 +34,40 @@ const assetSchema = new mongoose.Schema({
         type: Number,
         required: [true, 'Please add the expected annual percentage return (APR)']
     },
+    irr: {
+        type: Number,
+        default: 0
+    },
+    propertyType: {
+        type: String,
+        enum: ['Residential', 'Commercial', 'Industrial', 'Land', 'Villas', 'Retail', 'Office'],
+        required: [true, 'Please specify property type']
+    },
+    listingType: {
+        type: String,
+        enum: ['Fractional', 'Direct_Purchase'],
+        default: 'Fractional'
+    },
+    occupancyStatus: {
+        type: String,
+        enum: ['Rented', 'Vacant', 'Under_Construction'],
+        default: 'Rented'
+    },
+    yearBuilt: Number,
+    mapUrl: String,
+    coordinates: {
+        lat: Number,
+        lng: Number
+    },
+    nearbyLandmarks: {
+        type: [String],
+        default: []
+    },
+    projectHighlights: {
+        type: [String],
+        default: []
+    },
+    marketGrowth: String, // e.g., 'Expected 5-7% annual appreciation'
     category: {
         type: String,
         required: [true, 'Please specify a category'],
