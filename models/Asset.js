@@ -18,6 +18,18 @@ const assetSchema = new mongoose.Schema({
         type: Number,
         required: [true, 'Please add a price']
     },
+    totalShares: {
+        type: Number,
+        required: [true, 'Please add total shares']
+    },
+    availableShares: {
+        type: Number,
+        required: [true, 'Please add available shares']
+    },
+    tokenPrice: {
+        type: Number,
+        required: [true, 'Please add token price']
+    },
     images: {
         type: [String], // Array of local file paths
         default: []
