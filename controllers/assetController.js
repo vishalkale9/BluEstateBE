@@ -13,15 +13,28 @@ exports.createAsset = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Please upload at least one image' });
         }
 
-        // Parse amenities if they come as a string (common in multipart/form-data)
-        let amenities = req.body.amenities;
-        if (typeof amenities === 'string') {
-            amenities = amenities.split(',').map(item => item.trim());
-        }
+        // Parse array fields if they come as strings (common in multipart/form-data)
+        const parseArray = (input) => {
+            if (typeof input === 'string') return input.split(',').map(item => item.trim()).filter(i => i);
+            return input || [];
+        };
+
+        const amenities = parseArray(req.body.amenities);
+        const nearbyLandmarks = parseArray(req.body.nearbyLandmarks);
+        const projectHighlights = parseArray(req.body.projectHighlights);
+
+        // Extract coordinates if present in separate fields (lat, lng)
+        const coordinates = {
+            lat: req.body['coordinates[lat]'] || req.body.lat,
+            lng: req.body['coordinates[lng]'] || req.body.lng
+        };
 
         const assetData = {
             ...req.body,
             amenities,
+            nearbyLandmarks,
+            projectHighlights,
+            coordinates: (coordinates.lat && coordinates.lng) ? coordinates : undefined,
             images,
             owner: req.user.id
         };
@@ -111,9 +124,22 @@ exports.updateAsset = async (req, res) => {
             req.body.images = [...asset.images, ...newImages];
         }
 
-        // Parse amenities if updated
-        if (req.body.amenities && typeof req.body.amenities === 'string') {
-            req.body.amenities = req.body.amenities.split(',').map(item => item.trim());
+        // Parse array fields if updated
+        const parseArray = (input) => {
+            if (typeof input === 'string') return input.split(',').map(item => item.trim()).filter(i => i);
+            return input;
+        };
+
+        if (req.body.amenities) req.body.amenities = parseArray(req.body.amenities);
+        if (req.body.nearbyLandmarks) req.body.nearbyLandmarks = parseArray(req.body.nearbyLandmarks);
+        if (req.body.projectHighlights) req.body.projectHighlights = parseArray(req.body.projectHighlights);
+
+        // Handle coordinates update
+        if (req.body['coordinates[lat]'] || req.body['coordinates[lng]'] || req.body.lat || req.body.lng) {
+            req.body.coordinates = {
+                lat: req.body['coordinates[lat]'] || req.body.lat || (asset.coordinates ? asset.coordinates.lat : 0),
+                lng: req.body['coordinates[lng]'] || req.body.lng || (asset.coordinates ? asset.coordinates.lng : 0)
+            };
         }
 
         asset = await Asset.findByIdAndUpdate(req.params.id, req.body, {
