@@ -4,7 +4,9 @@ const path = require('path');
 const {
     createAsset,
     getAssets,
-    getAsset
+    getAsset,
+    updateAsset,
+    deleteAsset
 } = require('../controllers/assetController');
 const { protect, authorize } = require('../middlewares/authMiddleware');
 
@@ -41,5 +43,7 @@ router.get('/:id', getAsset);
 
 // Admin Only Routes
 router.post('/', protect, authorize('admin'), upload.array('images', 5), createAsset);
+router.put('/:id', protect, authorize('admin'), upload.array('images', 5), updateAsset);
+router.delete('/:id', protect, authorize('admin'), deleteAsset);
 
 module.exports = router;

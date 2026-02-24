@@ -30,13 +30,34 @@ const assetSchema = new mongoose.Schema({
         type: Number,
         required: [true, 'Please add token price']
     },
+    apr: {
+        type: Number,
+        required: [true, 'Please add the expected annual percentage return (APR)']
+    },
+    category: {
+        type: String,
+        required: [true, 'Please specify a category'],
+        enum: ['Residential', 'Commercial', 'Industrial', 'Land', 'Villas']
+    },
+    isFeatured: {
+        type: Boolean,
+        default: false
+    },
+    amenities: {
+        type: [String],
+        default: []
+    },
+    area: {
+        type: Number,
+        required: [true, 'Please specify the area in sq ft']
+    },
     images: {
         type: [String], // Array of local file paths
         default: []
     },
     status: {
         type: String,
-        enum: ['available', 'sold'],
+        enum: ['available', 'sold', 'fully_funded'],
         default: 'available'
     },
     owner: {
