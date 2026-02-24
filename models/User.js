@@ -7,7 +7,20 @@ const UserSchema = new mongoose.Schema({
     password: { type: String, select: false },
     walletAddress: { type: String, unique: true, lowercase: true, sparse: true },
     nonce: { type: String, default: () => Math.floor(Math.random() * 1000000).toString() },
-    role: { type: String, enum: ['user', 'admin'], default: 'user' }
+    role: { type: String, enum: ['user', 'admin'], default: 'user' },
+    kycStatus: {
+        type: String,
+        enum: ['unverified', 'pending', 'verified', 'rejected'],
+        default: 'unverified'
+    },
+    kycDetails: {
+        fullName: String,
+        dob: Date,
+        documentType: { type: String, enum: ['Passport', 'ID_Card', 'Drivers_License'] },
+        documentNumber: String
+    },
+    kycDocument: String, // Filename of the uploaded ID photo
+    kycRejectionReason: String
 }, { timestamps: true });
 
 // Hash password before saving
