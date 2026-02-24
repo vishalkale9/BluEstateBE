@@ -30,6 +30,7 @@ app.get("/", (req, res) => {
 // Mount Routes
 app.use("/api/auth", require("./routes/authRoutes"));
 app.use("/api/assets", require("./routes/assetRoutes"));
+app.use("/api/investments", require("./routes/investmentRoutes"));
 
 // Global Error Handler
 app.use((err, req, res, next) => {
