@@ -86,6 +86,17 @@ exports.verifyUser = async (req, res) => {
 
         await user.save();
 
+        // --- RWA AUDIT: Notification ---
+        const { sendNotification } = require('../utils/rwaAudit');
+        await sendNotification(
+            user._id,
+            `KYC ${status.toUpperCase()}`,
+            status === 'verified'
+                ? 'Congratulations! Your account is now verified and you can start investing.'
+                : `Your KYC was rejected. Reason: ${reason || 'Incomplete documents'}. Please resubmit.`,
+            'KYC_UPDATE'
+        );
+
         res.status(200).json({
             success: true,
             message: `User KYC has been ${status}`,
