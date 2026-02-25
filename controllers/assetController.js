@@ -187,3 +187,44 @@ exports.deleteAsset = async (req, res) => {
         });
     }
 };
+/**
+ * @desc    Get Public Audit Trail (Blockchain History) for an asset
+ * @route   GET /api/assets/:id/history
+ * @access  Public
+ */
+exports.getAssetHistory = async (req, res) => {
+    try {
+        const Transaction = require('../models/Transaction');
+
+        // Find all property-related transactions (Purchases, Sales, Rent)
+        const history = await Transaction.find({
+            asset: req.params.id,
+            type: { $in: ['Primary_Purchase', 'Secondary_Purchase', 'Secondary_Sale', 'Rent_Yield'] }
+        })
+            .populate('user', 'name walletAddress') // In real world, we only show walletAddress
+            .sort('-createdAt');
+
+        // Masking logic for "Expert" Privacy Standard
+        const sanitizedHistory = history.map(tx => {
+            const wallet = tx.user?.walletAddress || '0x' + tx.user?._id.toString().substring(0, 10) + '...';
+            const absAmount = Math.abs(tx.amount);
+            return {
+                type: tx.type,
+                amount: absAmount,
+                shares: tx.shares || 0,
+                pricePerShare: tx.shares > 0 ? Number((absAmount / tx.shares).toFixed(2)) : 0,
+                wallet: wallet,
+                hash: tx.transactionHash,
+                date: tx.createdAt
+            };
+        });
+
+        res.status(200).json({
+            success: true,
+            count: sanitizedHistory.length,
+            data: sanitizedHistory
+        });
+    } catch (err) {
+        res.status(400).json({ success: false, message: err.message });
+    }
+};

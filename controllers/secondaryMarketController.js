@@ -1,6 +1,7 @@
 const SecondaryListing = require('../models/SecondaryListing');
 const Investment = require('../models/Investment');
 const Asset = require('../models/Asset');
+const User = require('../models/User');
 
 /**
  * @desc    Helper: Calculate current total shares owned by a user for an asset
@@ -106,6 +107,31 @@ exports.buyFromMarket = async (req, res) => {
             return res.status(400).json({ success: false, message: 'You cannot buy your own tokens' });
         }
 
+        const purchaseCost = requestedShares * listing.pricePerShare;
+
+        // --- RWA FINANCIAL GUARD: Check Buyer Balance ---
+        const buyer = await User.findById(req.user.id);
+        if (buyer.walletBalance < purchaseCost) {
+            return res.status(400).json({
+                success: false,
+                message: `Insufficient balance. Required: $${purchaseCost}, Available: $${buyer.walletBalance}`
+            });
+        }
+
+        // --- RWA SECURITY AUDIT: Atomic Listing Update ---
+        const updatedListing = await SecondaryListing.findOneAndUpdate(
+            { _id: req.params.listingId, sharesForSale: { $gte: requestedShares }, status: 'active' },
+            {
+                $inc: { sharesForSale: -requestedShares },
+                $set: { status: (listing.sharesForSale - requestedShares === 0) ? 'completed' : 'active' }
+            },
+            { returnDocument: 'after' }
+        );
+
+        if (!updatedListing) {
+            return res.status(400).json({ success: false, message: 'Transaction failed: Concurrent update or insufficient shares' });
+        }
+
         // --- RWA SECURITY AUDIT: Atomic Direct Ownership Transfer ---
 
         // 1. DEDUCT FROM SELLER (Direct Reduction, No Negative Records)
@@ -113,26 +139,50 @@ exports.buyFromMarket = async (req, res) => {
         const sellerInvestments = await Investment.find({
             user: listing.seller,
             asset: listing.asset,
-            status: 'completed'
+            // Removed status check to be more inclusive of all holdings
         });
+
+        console.log(`Auditing Seller Holdings: Found ${sellerInvestments.length} records for deduction.`);
 
         for (let inv of sellerInvestments) {
             if (sharesRemainingToDeduct <= 0) break;
 
             if (inv.sharesBought <= sharesRemainingToDeduct) {
                 sharesRemainingToDeduct -= inv.sharesBought;
-                await inv.deleteOne(); // Entire record consumed
+                await inv.deleteOne(); // Full record consumed
             } else {
+                // Proportional deduction
+                const oldShares = inv.sharesBought;
                 inv.sharesBought -= sharesRemainingToDeduct;
-                // Reduce totalAmount proportionally for the seller's record
-                inv.totalAmount = (inv.totalAmount / (inv.sharesBought + sharesRemainingToDeduct)) * inv.sharesBought;
+                // Update investment cost basis proportionally
+                inv.totalAmount = (inv.totalAmount / oldShares) * inv.sharesBought;
                 sharesRemainingToDeduct = 0;
                 await inv.save();
             }
         }
 
-        // 2. TRANSFER TO BUYER (Consolidated Ownership Record)
-        const purchaseCost = requestedShares * listing.pricePerShare;
+        // CRITICAL: Final Integrity Check
+        if (sharesRemainingToDeduct > 0) {
+            // This should NEVER happen if the listing verification passed
+            throw new Error(`Critical Audit Failure: Seller has insufficient shares in records to complete this transfer. Remaining: ${sharesRemainingToDeduct}`);
+        }
+
+        // 3. TRANSFER TO BUYER & UPDATE BALANCES
+        // Update Buyer
+        buyer.walletBalance -= purchaseCost;
+        await buyer.save();
+
+        // Update Seller
+        const seller = await User.findById(listing.seller);
+        seller.walletBalance += purchaseCost;
+        seller.totalEarned += purchaseCost;
+        await seller.save();
+
+        // --- RWA PRICE DISCOVERY: Update Asset Market Price to Last Traded Price ---
+        await Asset.findByIdAndUpdate(listing.asset, {
+            currentMarketPrice: listing.pricePerShare
+        });
+
         let buyerInvestment = await Investment.findOne({ user: req.user.id, asset: listing.asset });
 
         if (buyerInvestment) {
@@ -152,12 +202,53 @@ exports.buyFromMarket = async (req, res) => {
             });
         }
 
-        // 3. UPDATE LISTING STATUS
-        listing.sharesForSale -= requestedShares;
-        if (listing.sharesForSale === 0) {
-            listing.status = 'completed';
-        }
-        await listing.save();
+        // --- RWA AUDIT: Transaction Ledger & Notifications ---
+        const { recordTransaction, sendNotification } = require('../utils/rwaAudit');
+        const asset = await Asset.findById(listing.asset);
+
+        // --- RWA SENIOR LOGIC: Shared Blockchain Hash for Atomic Trade ---
+        const randomBytes = [...Array(64)].map(() => Math.floor(Math.random() * 16).toString(16)).join('');
+        const sharedHash = `0x${randomBytes}`;
+
+        // 1. Log Buyer Transaction
+        await recordTransaction({
+            user: req.user.id,
+            type: 'Secondary_Purchase',
+            amount: -purchaseCost,
+            asset: listing.asset,
+            shares: requestedShares,
+            description: `Bought ${requestedShares} shares of ${asset.title} from Secondary Market`,
+            referenceId: buyerInvestment._id,
+            transactionHash: sharedHash
+        });
+
+        // 2. Log Seller Transaction (Income)
+        await recordTransaction({
+            user: listing.seller,
+            type: 'Secondary_Sale',
+            amount: purchaseCost,
+            asset: listing.asset,
+            shares: requestedShares,
+            description: `Sold ${requestedShares} shares of ${asset.title} on Secondary Market`,
+            referenceId: listing._id,
+            transactionHash: sharedHash
+        });
+
+        // 3. Notify Buyer
+        await sendNotification(
+            req.user.id,
+            'Purchase Successful',
+            `You have successfully bought ${requestedShares} shares of ${asset.title}.`,
+            'TRANSACTION_SUCCESS'
+        );
+
+        // 4. Notify Seller
+        await sendNotification(
+            listing.seller,
+            'Tokens Sold!',
+            `Someone just bought ${requestedShares} of your listed shares for ${asset.title}. $${purchaseCost.toFixed(2)} has been credited.`,
+            'MARKET_ALERT'
+        );
 
         res.status(200).json({
             success: true,
