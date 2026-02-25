@@ -30,6 +30,12 @@ const assetSchema = new mongoose.Schema({
         type: Number,
         required: [true, 'Please add token price']
     },
+    currentMarketPrice: {
+        type: Number,
+        default: function () {
+            return this.tokenPrice;
+        }
+    },
     apr: {
         type: Number,
         required: [true, 'Please add the expected annual percentage return (APR)']
@@ -37,6 +43,15 @@ const assetSchema = new mongoose.Schema({
     irr: {
         type: Number,
         default: 0
+    },
+    lastAppraisalDate: {
+        type: Date,
+        default: Date.now
+    },
+    rentFrequency: {
+        type: String,
+        enum: ['Monthly', 'Quarterly'],
+        default: 'Monthly'
     },
     propertyType: {
         type: String,

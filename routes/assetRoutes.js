@@ -6,7 +6,8 @@ const {
     getAssets,
     getAsset,
     updateAsset,
-    deleteAsset
+    deleteAsset,
+    getAssetHistory
 } = require('../controllers/assetController');
 const { protect, authorize } = require('../middlewares/authMiddleware');
 
@@ -40,6 +41,7 @@ const upload = multer({
 // Public Routes
 router.get('/', getAssets);
 router.get('/:id', getAsset);
+router.get('/:id/history', getAssetHistory);
 
 // Admin Only Routes
 router.post('/', protect, authorize('admin'), upload.array('images', 5), createAsset);

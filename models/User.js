@@ -20,7 +20,15 @@ const UserSchema = new mongoose.Schema({
         documentNumber: String
     },
     kycDocument: String, // Filename of the uploaded ID photo
-    kycRejectionReason: String
+    kycRejectionReason: String,
+    walletBalance: {
+        type: Number,
+        default: 0
+    },
+    totalEarned: {
+        type: Number,
+        default: 0
+    }
 }, { timestamps: true });
 
 // Hash password before saving
